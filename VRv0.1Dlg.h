@@ -55,5 +55,6 @@ public:
 	struct Host host;
 	HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	CListBox m_ctlCost;
 };
 
