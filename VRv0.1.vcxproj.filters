@@ -36,6 +36,9 @@
     <ClInclude Include="dv.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="socket.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VRv0.1.cpp">
@@ -48,6 +51,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="dv.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="socket.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

@@ -4,7 +4,7 @@
 
 #pragma once
 #include "afxwin.h"
-
+#include "dv.h"
 
 // CVRv01Dlg 对话框
 class CVRv01Dlg : public CDialogEx
@@ -41,6 +41,19 @@ public:
 	CListBox m_ctlNext;//下一跳
 	CListBox m_ctlDeb;//状态信息
 	afx_msg void OnBnClickedBsend();
-	static UINT ThreadFun(LPVOID pParam);
+	static UINT MainThreadFun(LPVOID pParam);
+	static UINT RecvThreadFun(LPVOID pParam);
+	static UINT SendThreadFun(LPVOID pParam);
+	vector<vector<int> > CostMatrix;//费用矩阵
+	map<int, string> NumToHost;//下标到主机名的映射
+	map<string, Host> vHost;
+	map<string, RouterTab> RouterTable;
+	map<string, RouterTab> AdjTable;
+	map<string, string> IPPortToHost;
+	map<string, string> HostToIPPort;
+	int fd;
+	struct Host host;
+	HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };
 
