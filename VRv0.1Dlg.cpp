@@ -69,6 +69,7 @@ void CVRv01Dlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_LDST, m_ctlDst);
 	DDX_Control(pDX, IDC_LNEXT, m_ctlNext);
 	DDX_Control(pDX, IDC_LDEB, m_ctlDeb);
+	DDX_Control(pDX, IDC_LCOST, m_ctlCost);
 }
 
 BEGIN_MESSAGE_MAP(CVRv01Dlg, CDialogEx)
@@ -123,14 +124,6 @@ BOOL CVRv01Dlg::OnInitDialog()
 		{3,1,0,2},
 		{7,DV_MAX,2,0}
 	};
-	m_ctlDst.AddString("Host0");
-	m_ctlDst.AddString("Host1");
-	m_ctlDst.AddString("Host2");
-	m_ctlDst.AddString("Host3");
-	m_ctlNext.AddString("Host0");
-	m_ctlNext.AddString("Host1");
-	m_ctlNext.AddString("Host2");
-	m_ctlNext.AddString("Host3");
 	NumToHost[0] = "Host0";
 	NumToHost[1] = "Host1";
 	NumToHost[2] = "Host2";
@@ -139,26 +132,39 @@ BOOL CVRv01Dlg::OnInitDialog()
 	vHost["Host1"] = Host("Host1", 2, 1, "127.0.0.1", 65531);
 	vHost["Host2"] = Host("Host2", 3, 2, "127.0.0.1", 65532);
 	vHost["Host3"] = Host("Host3", 2, 3, "127.0.0.1", 65533);
-	RouterTable["Host0"] = RouterTab("Host0", "Host0", 0);
+	/*RouterTable["Host0"] = RouterTab("Host0", "Host0", 0);
 	RouterTable["Host1"] = RouterTab("Host1", "Host1", 1);
 	RouterTable["Host2"] = RouterTab("Host2", "Host2", 3);
-	RouterTable["Host3"] = RouterTab("Host3", "Host3", 7);
-	/*RouterTable.insert(pair<string, struct RouterTab>("Host0", RouterTab("Host0", "Host0", 0)));
-	RouterTable.insert(pair<string, struct RouterTab>("Host1", RouterTab("Host1", "Host1", 0)));
-	RouterTable.insert(pair<string, struct RouterTab>("Host2", RouterTab("Host2", "Host2", 0)));
-	RouterTable.insert(pair<string, struct RouterTab>("Host3", RouterTab("Host3", "Host3", 0)));*/
-	AdjTable["Host0"] = RouterTab("Host0", "Host0", 0);
+	RouterTable["Host3"] = RouterTab("Host3", "Host3", 7);*/
+	/*AdjTable["Host0"] = RouterTab("Host0", "Host0", 0);
 	AdjTable["Host1"] = RouterTab("Host1", "Host1", 1);
 	AdjTable["Host2"] = RouterTab("Host2", "Host2", 3);
-	AdjTable["Host3"] = RouterTab("Host3", "Host3", 7);
-	IPPortToHost["127.0.0.1+65530"] = "Host0";
+	AdjTable["Host3"] = RouterTab("Host3", "Host3", 7);*/
+	dvInit(CostMatrix, NumToHost, RouterTable, host);
+	/*IPPortToHost["127.0.0.1+65530"] = "Host0";
 	IPPortToHost["127.0.0.1+65531"] = "Host1";
 	IPPortToHost["127.0.0.1+65532"] = "Host2";
 	IPPortToHost["127.0.0.1+65533"] = "Host3";
 	HostToIPPort["Host0"] = "127.0.0.1+65530";
 	HostToIPPort["Host1"] = "127.0.0.1+65531";
 	HostToIPPort["Host2"] = "127.0.0.1+65532";
-	HostToIPPort["Host3"] = "127.0.0.1+65533";
+	HostToIPPort["Host3"] = "127.0.0.1+65533";*/
+	for (int i = 0; i < 4; ++i) {
+		IPPortToHost["127.0.0.1+6553" + to_string(i)] = "Host" + to_string(i);
+		HostToIPPort["Host" + to_string(i)] = "127.0.0.1+6553" + to_string(i);
+	}
+	/*for (auto it = IPPortToHost.begin(); it != IPPortToHost.end(); ++it) {
+		MessageBox((it->first + it->second).c_str());
+		Sleep(2000);
+	}*/
+	CListBox *pRList = &(m_ctlDst);
+	CListBox *pNList = &(m_ctlNext);
+	CListBox *pCList = &(m_ctlCost);
+	for (auto it = RouterTable.begin(); it != RouterTable.end(); ++it) {
+		pRList->AddString(it->second.dst.c_str());
+		pNList->AddString(it->second.hop.c_str());
+		pCList->AddString(to_string(it->second.cost).c_str());
+	}
 	CWinThread* mThread = AfxBeginThread(MainThreadFun, this);
 	CWinThread* rThread = AfxBeginThread(RecvThreadFun, this);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -202,7 +208,7 @@ void CVRv01Dlg::OnPaint()
 	}
 	else
 	{
-		CDialogEx::OnPaint();
+CDialogEx::OnPaint();
 	}
 }
 
@@ -242,7 +248,7 @@ UINT CVRv01Dlg::MainThreadFun(LPVOID pParam) {
 	//定时发送更新
 	pDlg->SetTimer(1, 30000, NULL);
 	for (auto it = pDlg->AdjTable.begin(); it != pDlg->AdjTable.end(); ++it) {
-		pDlg->SetTimer(pDlg->vHost.find((it->second).dst)->second.index+ 1024, 180000, NULL);
+		pDlg->SetTimer(pDlg->vHost.find((it->second).dst)->second.index + 1024, 180000, NULL);
 	}
 	return 0;
 }
@@ -252,52 +258,71 @@ UINT CVRv01Dlg::RecvThreadFun(LPVOID pParam) {
 	//找出来源路由
 	string  content, fromIP;
 	int fromPort;
-	for (;;) {
-		fromPort = socketReceive(pDlg->fd, content, fromIP);
-		if (fromPort == -1) {
-			int err = WSAGetLastError();
-			pDlg->MessageBox((to_string(err) + "Recv").c_str());
+	content = "Router\n4\n1\n127.0.0.1\n65531\nHost0 Host0 1\nHost1 Host1 0\nHost2 Host2 1\nHost3 Host3 5\n";
+	fromPort = 65531;
+	fromIP = "127.0.0.1";
+	//for (;;) {
+		//fromPort = socketReceive(pDlg->fd, content, fromIP);
+	if (fromPort == -1) {
+		int err = WSAGetLastError();
+		pDlg->MessageBox((to_string(err) + "Recv").c_str());
+	}
+	else {
+		string srcHost = (pDlg->IPPortToHost).find(fromIP + "+" + to_string(fromPort))->second;
+		Host srcRouter = pDlg->vHost.find(srcHost)->second;
+		vector<string> v;
+		SplitString(content, v, "\n");
+		if (v[0] == "Message") {
+			if (v[2] == pDlg->host.name) {
+				//发送给自己
+				pDlg->m_ctlRecvd.AddString((v[1] + ": " + v[3]).c_str());
+				pDlg->m_ctlDeb.AddString(("Received message from " + v[1]).c_str());
+			}
+			else {
+				//转发
+				string forwardHost = pDlg->RouterTable.find(v[2])->second.hop;
+				string forwardIP = (pDlg->HostToIPPort.find(forwardHost))->second;
+				vector<string> to;
+				SplitString(forwardIP, to, "+");
+				pDlg->m_ctlDeb.AddString(("Forwarding message to " + forwardHost).c_str());
+				socketSend(pDlg->fd, stoi(to[1]), to[0], content);
+				//pDlg->MessageBox((to[0] + "\n" + to[1] + "\n" + content).c_str());
+			}
+		}
+		else if (v[0] == "Router") {
+			//重设定时器
+			Sleep(5000);
+			pDlg->KillTimer(srcRouter.index + 1024);
+			//pDlg->MessageBox("kill");
+			pDlg->SetTimer(srcRouter.index + 1024, 180000, NULL);
+			//转换字符串为路由表并更新
+			map<string, struct RouterTab> srcTab;
+			dvReceive(content, srcTab, srcRouter);
+			pDlg->m_ctlDeb.AddString(("Received routertable from " + srcHost).c_str());
+			pDlg->m_ctlDeb.AddString("Updating routertable...");
+			//lock
+			WaitForSingleObject(pDlg->hMutex, INFINITE);
+			dvUpdate(srcRouter, srcTab, pDlg->AdjTable, pDlg->RouterTable, pDlg->host);
+			//unlock
+			ReleaseMutex(pDlg->hMutex);
+			//同步列表
+			CListBox *pRList = &(pDlg->m_ctlDst);
+			CListBox *pNList = &(pDlg->m_ctlNext);
+			CListBox *pCList = &(pDlg->m_ctlCost);
+			pRList->ResetContent();
+			pNList->ResetContent();
+			pCList->ResetContent();
+			for (auto it = pDlg->RouterTable.begin(); it != pDlg->RouterTable.end(); ++it){
+				pRList->AddString(it->second.dst.c_str());
+				pNList->AddString(it->second.hop.c_str());
+				pCList->AddString(to_string(it->second.cost).c_str());
+			}
 		}
 		else {
-			string srcHost = (pDlg->IPPortToHost).find(fromIP + "+" + to_string(fromPort))->second;
-			Host srcRouter = pDlg->vHost.find(srcHost)->second;
-			vector<string> v;
-			SplitString(content, v, "\n");
-			if (v[0] == "Message") {
-				if (v[2] == pDlg->host.name) {
-					//发送给自己
-					pDlg->m_ctlRecvd.AddString((v[1] + ": " + v[3]).c_str());
-					pDlg->m_ctlDeb.AddString(("Received message from " + v[1]).c_str());
-				}
-				else {
-					//转发
-					string forwardHost = pDlg->RouterTable.find(v[2])->second.hop;
-					string forwardIP = (pDlg->HostToIPPort.find(forwardHost))->second;
-					vector<string> to;
-					SplitString(forwardIP, to, "+");
-					pDlg->m_ctlDeb.AddString(("Forwarding message to " + forwardHost).c_str());
-					socketSend(pDlg->fd, stoi(to[1]), to[0], content);
-					//pDlg->MessageBox((to[0] + "\n" + to[1] + "\n" + content).c_str());
-				}
-			}
-			else if (v[0] == "Router") {
-				//重设定时器
-				pDlg->KillTimer(srcRouter.index + 1024);
-				//pDlg->MessageBox("kill");
-				pDlg->SetTimer(srcRouter.index + 1024, 180000, NULL);
-				//转换字符串为路由表并更新
-				map<string, struct RouterTab> srcTab;
-				dvReceive(content, srcTab, srcRouter);
-				pDlg->m_ctlDeb.AddString(("Received routertable from " + srcHost).c_str());
-				pDlg->m_ctlDeb.AddString("Updating routertable...");
-				//lock
-				//WaitForSingleObject(pDlg->hMutex, INFINITE);
-				//dvUpdate(srcRouter, srcTab, pDlg->AdjTable, pDlg->RouterTable, pDlg->host);
-				//unlock
-				//ReleaseMutex(pDlg->hMutex);
-			}
+			pDlg->MessageBox(("Unrecognizable: " + content).c_str());
 		}
-	}	
+		}
+	//}	
 	return 0;
 }
 
@@ -372,6 +397,7 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 	{
 		string contentToSend;
 		dvSend(contentToSend, RouterTable, host);
+		//MessageBox(contentToSend.c_str());
 		for (auto it = AdjTable.begin(); it != AdjTable.end(); ++it) {
 			if (it->first != host.name) {
 				string toHostname = it->first;
@@ -400,9 +426,12 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 		ReleaseMutex(hMutex);
 		string contentToSend;
 		dvSend(content, RouterTable, host);
+		MessageBox(content.c_str());
 		//lock
 		WaitForSingleObject(hMutex, INFINITE);
-		dvDelete(RouterTable, AdjTable, hostname);
+		dvDelete(RouterTable, AdjTable, hostname, host);
+		dvSend(content, RouterTable, host);
+		//MessageBox(content.c_str());
 		//unlock
 		ReleaseMutex(hMutex);
 		for (auto it = AdjTable.begin(); it != AdjTable.end(); ++it) {
