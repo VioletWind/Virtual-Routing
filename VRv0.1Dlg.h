@@ -40,6 +40,8 @@ public:
 	CListBox m_ctlDst;//目标主机
 	CListBox m_ctlNext;//下一跳
 	CListBox m_ctlDeb;//状态信息
+	CListBox m_ctlCost;
+	CButton m_ctlEnable;
 	afx_msg void OnBnClickedBsend();
 	static UINT MainThreadFun(LPVOID pParam);
 	static UINT RecvThreadFun(LPVOID pParam);
@@ -54,7 +56,8 @@ public:
 	int fd;
 	struct Host host;
 	HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
+	bool enable;
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
-	CListBox m_ctlCost;
+	afx_msg void OnBnClickedEnable();
 };
 
