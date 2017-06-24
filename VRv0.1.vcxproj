@@ -45,7 +45,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
+    <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
@@ -187,6 +187,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dv.h" />
+    <ClInclude Include="ls.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="socket.h" />
     <ClInclude Include="stdafx.h" />
@@ -196,6 +197,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dv.cpp" />
+    <ClCompile Include="ls.cpp" />
     <ClCompile Include="socket.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
