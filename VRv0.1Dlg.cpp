@@ -9,6 +9,8 @@
 #include "socket.h"
 #include "dv.h"
 #include <iterator>
+#include <fstream>
+#include <sstream>
 #define BUFFERSIZE 2048
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -81,6 +83,7 @@ BEGIN_MESSAGE_MAP(CVRv01Dlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BSEND, &CVRv01Dlg::OnBnClickedBsend)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_ENABLE, &CVRv01Dlg::OnBnClickedEnable)
+	ON_BN_CLICKED(IDC_BINIT, &CVRv01Dlg::OnBnClickedBinit)
 END_MESSAGE_MAP()
 
 
@@ -116,17 +119,21 @@ BOOL CVRv01Dlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
-	enable = true;
-	m_strMessage = "";
+	init = enable = false;
+	GetDlgItem(IDC_BINIT)->EnableWindow(TRUE);
+	GetDlgItem(IDC_ENABLE)->EnableWindow(FALSE);
+	GetDlgItem(IDC_BSEND)->EnableWindow(FALSE);
+	/*m_strMessage = "";
 	host = Host("Host0", 4, 0, "127.0.0.1", 65530);
 	fd = socketBind(host.Port);
 	CostMatrix = {
-		{0,1,3,7},
-		{1,0,1,DV_MAX},
-		{3,1,0,2},
-		{7,DV_MAX,2,0}
+		{0, DV_MAX, 1, 3, 1},
+		{DV_MAX, 0, DV_MAX, 1, 4},
+		{1, DV_MAX, 0, 1, DV_MAX},
+		{3, 1, 1, 0, DV_MAX},
+		{1, 4, DV_MAX, DV_MAX, 0}
 	};
-	for (int i = 0; i < 4; ++i) {
+	for (int i = 0; i < 5; ++i) {
 		IPPortToHost["127.0.0.1+6553" + to_string(i)] = "Host" + to_string(i);
 		HostToIPPort["Host" + to_string(i)] = "127.0.0.1+6553" + to_string(i);
 		NumToHost[i] = ("Host" + to_string(i));
@@ -147,7 +154,7 @@ BOOL CVRv01Dlg::OnInitDialog()
 		pCList->AddString(to_string(it->second.cost).c_str());
 	}
 	CWinThread* mThread = AfxBeginThread(MainThreadFun, this);
-	CWinThread* rThread = AfxBeginThread(RecvThreadFun, this);
+	CWinThread* rThread = AfxBeginThread(RecvThreadFun, this);*/
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -383,7 +390,7 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 			dvSend(contentToSend, RouterTable, host);
 			//MessageBox(contentToSend.c_str());
 			for (auto it = AdjTable.begin(); it != AdjTable.end(); ++it) {
-				if (it->first != host.name) {
+				if (it->first != host.name && it->second.cost < DV_MAX) {
 					string toHostname = it->first;
 					string toIPPort = HostToIPPort[toHostname];
 					vector<string> v;
@@ -398,6 +405,10 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 			}
 			break;
 		}
+		case 2:
+			KillTimer(2);
+			dvDelete(RouterTable, AdjTable, host);
+			break;
 		default:
 			KillTimer(nIDEvent);
 			//某个节点失效
@@ -408,12 +419,14 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 			dvDisable(RouterTable, AdjTable, hostname);
 			//unlock
 			ReleaseMutex(hMutex);
+			m_ctlDeb.AddString((hostname + "Down").c_str());
 			string contentToSend;
 			dvSend(contentToSend, RouterTable, host);
 			//MessageBox(content.c_str());
 			//lock
 			WaitForSingleObject(hMutex, INFINITE);
-			dvDelete(RouterTable, AdjTable, hostname, host);
+			SetTimer(2, 35000, NULL);
+			//dvDelete(RouterTable, AdjTable, hostname, host);
 			//MessageBox(content.c_str());
 			//unlock
 			ReleaseMutex(hMutex);
@@ -430,7 +443,7 @@ void CVRv01Dlg::OnTimer(UINT_PTR nIDEvent)
 			}
 			//dvSend(content, RouterTable, host);
 			for (auto it = AdjTable.begin(); it != AdjTable.end(); ++it) {
-				if ((it->first) != host.name) {
+				if ((it->first) != host.name && it->second.cost < DV_MAX) {
 					string toHostname = it->first;
 					string toIPPort = HostToIPPort[toHostname];
 					vector<string> v;
@@ -468,7 +481,84 @@ void CVRv01Dlg::OnBnClickedEnable()
 			KillTimer(vHost.find((it->second).dst)->second.index + 1024);
 		}
 		GetDlgItem(IDC_BSEND)->EnableWindow(FALSE);
-		m_ctlEnable.SetWindowTextA("启动");
+		m_ctlEnable.SetWindowTextA("开启");
 	}
 	// TODO: 在此添加控件通知处理程序代码
+}
+
+
+void CVRv01Dlg::OnBnClickedBinit()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	if (init) {
+		MessageBox("Initialized!");
+		return;
+	}
+	char *filters = "配置文件(*.dat)|*.dat|";
+	string sPath;
+	CFileDialog fileDlg(TRUE, "dat", "*.dat",
+		OFN_HIDEREADONLY, filters);
+	if (fileDlg.DoModal() == IDOK) {
+		sPath = fileDlg.GetPathName();		
+	}if (sPath == "") return;
+	ifstream ifs(sPath, ios::in);
+	if (ifs.good()) {
+		int tSize, tIndex;
+		ifs >> tSize >> tIndex;
+		vector<vector<int> >tm;
+		map<string, string> tIPPortToHost, tHostToIPPort;
+		map<int, string> tNumToHost;
+		map<string, struct Host> tvHost;
+		for (int i = 0; i < tSize; ++i) {
+			vector<int> tv;
+			int ti;
+			for (int j = 0; j < tSize; ++j) {
+				ifs >> ti;
+				tv.push_back(ti);
+			}tm.push_back(tv);
+		}for (int i = 0; i < tSize; ++i) {
+			int ti, tport;
+			string tname, tIP;
+			ifs >> ti >> tname >> tIP >> tport;
+			tIPPortToHost[tIP + "+" + to_string(tport)] = tname;
+			tHostToIPPort[tname] = tIP + "+" + to_string(tport);
+			tNumToHost[ti] = tname;
+			int tr = 0;
+			for (auto it : tm[ti]) {
+				if (it != DV_MAX) tr++;
+			}
+			tvHost[tname] = Host(tname, tr, ti, tIP, tport);
+		}
+		//lock
+		WaitForSingleObject(hMutex, INFINITE); CostMatrix = tm;
+		IPPortToHost = tIPPortToHost;
+		HostToIPPort = tHostToIPPort;
+		NumToHost = tNumToHost;
+		vHost = tvHost;
+		host = vHost[NumToHost[tIndex]];
+		fd = socketBind(host.Port);
+		dvInit(CostMatrix, NumToHost, RouterTable, host);
+		dvInit(CostMatrix, NumToHost, AdjTable, host);
+		//unlock;
+		ReleaseMutex(hMutex);
+		CListBox *pRList = &(m_ctlDst);
+		CListBox *pNList = &(m_ctlNext);
+		CListBox *pCList = &(m_ctlCost);
+		for (auto it = RouterTable.begin(); it != RouterTable.end(); ++it) {
+			pRList->AddString(it->second.dst.c_str());
+			pNList->AddString(it->second.hop.c_str());
+			pCList->AddString(to_string(it->second.cost).c_str());
+		}init = enable = true;
+		GetDlgItem(IDC_BINIT)->EnableWindow(FALSE);
+		GetDlgItem(IDC_ENABLE)->EnableWindow(TRUE);
+		GetDlgItem(IDC_BSEND)->EnableWindow(TRUE);
+		m_ctlEnable.SetWindowTextA("关闭");
+		CWinThread* mThread = AfxBeginThread(MainThreadFun, this);
+		CWinThread* rThread = AfxBeginThread(RecvThreadFun, this);
+	}
+	else {
+		ifs.close();
+		MessageBox(("Failed to open " + sPath).c_str());
+		return;
+	}ifs.close();
 }

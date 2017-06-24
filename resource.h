@@ -21,6 +21,7 @@
 #define IDC_BUTTON1                     1008
 #define IDC_ENABLE                      1008
 #define IDC_BUTTON2                     1009
+#define IDC_BINIT                       1009
 
 // Next default values for new objects
 // 

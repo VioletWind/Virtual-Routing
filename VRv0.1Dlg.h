@@ -56,8 +56,9 @@ public:
 	int fd;
 	struct Host host;
 	HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
-	bool enable;
+	bool enable, init;
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedEnable();
+	afx_msg void OnBnClickedBinit();
 };
 
