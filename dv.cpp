@@ -7,8 +7,9 @@
 
 using namespace std;
 
-void dvInit(vector<vector<int> > &costs, map<int, string> &NumToHost, map<string, struct RouterTab> &Table, struct Host host) {
-	for (int i = 0; i < costs[host.index].size(); i++) {
+void dvInit(vector<vector<int> > &costs, map<int, string> &NumToHost, map<string, struct RouterTab> &Table, struct Host &host) {
+	int len = costs.size();
+	for (int i = 0; i < len; i++) {
 		RouterTab tab = {};
 		string dst = "";
 		double cost = 0;
@@ -22,7 +23,7 @@ void dvInit(vector<vector<int> > &costs, map<int, string> &NumToHost, map<string
 			tab.cost = cost;
 		tab.hop = dst;
 		Table[dst] = tab;
-	}
+	}host.vectorNum = Table.size();
 }
 void dvSend(string &content, map<string, struct RouterTab> &table, struct Host &host) {
 	ostringstream oss;
@@ -31,7 +32,7 @@ void dvSend(string &content, map<string, struct RouterTab> &table, struct Host &
 	for (; it != table.end(); it++) {
 		oss << (it->second).dst << ' ' << (it->second).hop << ' ' << (it->second).cost << '\n';
 	}
-	content = "Router\n" +oss.str();	// s_str()
+	content = "Router\n" + oss.str();	// s_str()
 }
 void dvReceive(string &content, map<string, struct RouterTab> &srcTab, struct Host &from) {
 	istringstream iss(content);
@@ -48,6 +49,8 @@ void dvUpdate(struct Host from, map<string, struct RouterTab> &srcTab, map<strin
 	// d(v) = min{c(u, v), c(u, x) + c(x, v)}
 	map<string, struct RouterTab>::iterator it;
 	map<string, struct RouterTab>::iterator it2;
+	auto fromit = routeTable.find(from.name);
+	if ((fromit == routeTable.end()) || (fromit->second.cost >= adjTable.find(from.name)->second.cost)) routeTable[from.name] = adjTable.find(from.name)->second;
 	double fromCost = (routeTable.find(from.name)->second).cost;	// c(u,x)
 	for (it2 = srcTab.begin(); it2 != srcTab.end(); it2++) {
 		string name = (it2->second).dst;	// v
@@ -65,10 +68,12 @@ void dvUpdate(struct Host from, map<string, struct RouterTab> &srcTab, map<strin
 			temp.hop = from.name;		// through the srcRouter
 			double newCost = fromCost + (it2->second).cost;
 			newCost = (newCost > DV_MAX) ? DV_MAX : newCost;
-			temp.cost = newCost;
 
-			routeTable[name] = temp;
-			host.vectorNum++;
+			if (newCost != DV_MAX) {
+				temp.cost = newCost;
+				routeTable[name] = temp;
+				//host.vectorNum++;
+			}
 		}
 
 		//the route is existed
@@ -79,8 +84,17 @@ void dvUpdate(struct Host from, map<string, struct RouterTab> &srcTab, map<strin
 
 			else {
 				double oldCost = (it->second).cost;
+				if (oldCost == DV_MAX)
+					continue;
 				double newCost = fromCost + (it2->second).cost;
 				newCost = (newCost > oldCost) ? oldCost : newCost;
+
+				//map<string, struct RouterTab>::iterator it_dst = routeTable.find(name);
+				if ((it2->second).cost == DV_MAX &&  it != routeTable.end()) {
+					it = routeTable.erase(it);
+					//host.vectorNum--;
+					continue;
+				}
 
 				//hop route don't change, just update the cost
 				if (((it->second).hop).compare(from.name) == 0) {
@@ -100,17 +114,44 @@ void dvUpdate(struct Host from, map<string, struct RouterTab> &srcTab, map<strin
 				}
 			}
 		}
+	}host.vectorNum = routeTable.size();
+}
+
+
+void dvDisable(map<string, struct RouterTab> &table, map<string, struct RouterTab> &adjTable, string HostName) {
+	//table[HostName].cost = DV_MAX;
+	//adjTable[HostName].cost = DV_MAX;
+
+	map<string, struct RouterTab>::iterator it;
+	for (it = table.begin(); it != table.end(); it++) {
+		if ((it->second).hop == HostName) {
+			(it->second).cost = DV_MAX;
+		}
+	}
+	for (it = adjTable.begin(); it != adjTable.end(); it++) {
+		if ((it->second).hop == HostName) {
+			(it->second).cost = DV_MAX;
+		}
 	}
 }
-void dvDelete(map<string, struct RouterTab> &table, map<string, struct RouterTab> &adjTable, string HostName, Host &host) {
+
+
+void dvDelete(map<string, struct RouterTab> &table, map<string, struct RouterTab> &adjTable, struct Host & host) {
 	map<string, struct RouterTab>::iterator it = table.begin();
-	for (; it != table.end(); it++) {
-		if (it->first == HostName) {
-			table.erase(it);
-			break;
+	for (; it != table.end();) {
+		if ((it->second).cost == DV_MAX) {
+			it = table.erase(it);
 		}
-	}host.vectorNum--;
-}
-void dvDisable(map<string, struct RouterTab> &table, map<string, struct RouterTab> &adjTable, string HostName) {
-	table[HostName].cost = DV_MAX;
+		else
+			it++;
+	}
+	it = adjTable.begin();
+	for (; it != adjTable.end();) {
+		if ((it->second).cost == DV_MAX) {
+			it = adjTable.erase(it);
+		}
+		else
+			it++;
+	}
+	host.vectorNum = table.size();
 }
